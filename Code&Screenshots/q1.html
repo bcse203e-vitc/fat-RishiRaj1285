@@ -1,0 +1,78 @@
+<input type="file" id="fileInput">
+<button id="process">Process</button>
+<pre id="output"></pre>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+function calculate_charges(hours) {
+    if (hours <= 0) return {error: true, charge: 0};
+    let total = 0;
+    let rem = hours;
+    while (rem > 24) {
+        total += 10;
+        rem -= 24;
+    }
+    if (rem <= 3) total += 2;
+    else total += 2 + 0.5 * (rem - 3);
+    if (total > 10 && hours <= 24) total = 10;
+    return {error: false, charge: total};
+}
+
+function ceilHours(ms) {
+    return Math.ceil(ms / 3600000);
+}
+
+$("#process").on("click", function () {
+    const file = $("#fileInput")[0].files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const rows = e.target.result.trim().split("\n");
+        let result = [];
+        let total = 0;
+        let maxDaily = 0;
+        let maxStay = 0;
+        let longest = [];
+
+        for (let i = 1; i < rows.length; i++) {
+            const [id, enter, exit] = rows[i].split(",");
+            const a = new Date(enter);
+            const b = new Date(exit);
+
+            if (b <= a) {
+                result.push([id,0,0,"error"]);
+                continue;
+            }
+
+            const hrs = ceilHours(b - a);
+            const r = calculate_charges(hrs);
+            const charge = r.charge;
+
+            if (!r.error) {
+                total += charge;
+                if (charge === 10) maxDaily++;
+                if (hrs > maxStay) {
+                    maxStay = hrs;
+                    longest = [id];
+                } else if (hrs === maxStay) {
+                    longest.push(id);
+                }
+            }
+            result.push([id,hrs,charge,""]);
+        }
+
+        let out = "customer_id,duration_hours,charge,error_flag\n" +
+                   result.map(r => r.join(",")).join("\n");
+
+        $("#output").text(
+            out +
+            "\n\ntotal_receipts: " + total +
+            "\ndaily_max_customers: " + maxDaily +
+            "\naverage_charge: " + (total / result.length) +
+            "\nlongest_stays: " + longest.join(";")
+        );
+    };
+    reader.readAsText(file);
+});
+</script>
